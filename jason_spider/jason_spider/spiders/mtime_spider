@@ -1,0 +1,61 @@
+# -*- coding: utf-8 -*-
+import scrapy
+from selenium import webdriver
+from jason_spider.items import JasonSpiderItem
+from scrapy.selector import Selector
+from scrapy.http import Request
+from scrapy.contrib.loader import ItemLoader
+from scrapy.contrib.spiders import CrawlSpider
+import json
+import sys
+from bs4 import BeautifulSoup
+
+reload(sys)
+sys.setdefaultencoding('utf-8')
+countrys = ['275', '138', '186', '271', '253', '174', '262', '133', '160', '248', '110', '163', '255', '183', '240', '279', '265', '147', '181', '209', '259', '126', '217', '107', '225', '282', '139', '220', '234', '137', '254', '118', '177', '111', '159', '175', '235', '260', '233', '252', '145', '127', '212', '269', '146', '165', '176', '203', '125',
+            '128', '149', '178', '182', '195', '199', '213', '227', '245', '249', '4871', '272']
+
+
+
+
+class DabSpider(CrawlSpider):
+    name = "normalspider"
+    start_urls = ['http://movie.mtime.com/tv/search/section/#nation=275']
+
+    def parse(self, response):
+        for country in countrys:
+            driver = webdriver.PhantomJS()
+
+            driver.get('http://movie.mtime.com/tv/search/section/#&nation=' + country)
+            html = driver.page_source
+            soup = BeautifulSoup(html, 'lxml')
+            page_nums = soup.find_all('a', {'class': 'num'})
+            num_max = int(page_nums[-1].get_text()) + 1
+            driver.quit()
+
+            for num in range(1, num_max):
+                # 使用phantomjs渲染，得到渲染后的html源码
+                item = JasonSpiderItem()
+                driver = webdriver.PhantomJS()
+
+                driver.get('http://movie.mtime.com/tv/search/section/#pageIndex=' + str(num) + '&nation=' + country)
+                html = driver.page_source
+                print driver.current_url
+                driver.quit()
+
+                # 使用渲染后的源码进行解析，解决动态网页抓取的问题
+                sel = Selector(text=html)
+                movies = sel.xpath('//ul[@class="ser_mlist2"]/li/div[@class="table"]/div[@class="t_r"]/div[2]')
+                for m in movies:
+                    item['entity'] = m.xpath('h3/a[1]/text()').extract()[0]
+                    item['concept'] = sel.xpath('//dd[@class="clearfix"][1]/div[2]/ul/li[@class="on"]/a/text()').extract()[0] +u'电视剧'
+                    yield item
+
+        """
+        next_num = sel.xpath('//a[@class="ml10 next"]').extract()
+
+        if next_num:
+            url = 'http://movie.mtime.com/tv/search/section/#nation=275&pageIndex=' + next_num[0]
+
+            yield Request(url, callback=self.parse)
+        """
